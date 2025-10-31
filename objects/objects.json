@@ -1,0 +1,158 @@
+[
+    {
+        "icon": "sdf_sphere.svg",
+        "category": "shape",
+        "sub_category": "3D.Primitive",
+        "name": "Sphere",
+        "source_path": "@LOCAL/objects/source/shape.cl:16-19"
+    },
+    {
+        "icon": "sdf_plane.svg",
+        "category": "shape",
+        "sub_category": "3D.Primitive",
+        "name": "Plane",
+        "source_path": "@LOCAL/objects/source/shape.cl:21-24"
+    },
+    {
+        "icon": "sdf_box.svg",
+        "category": "shape",
+        "sub_category": "3D.Primitive",
+        "name": "Box",
+        "source_path": "@LOCAL/objects/source/shape.cl:26-30"
+    },
+    
+    {
+        "icon": "math_sin.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Sin",
+        "source_path": "@LOCAL/objects/source/math.cl:1-1"
+    },
+    {
+        "icon": "math_cos.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Cos",
+        "source_path": "@LOCAL/objects/source/math.cl:2-2"
+    },
+    {
+        "icon": "math_tan.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Tan",
+        "source_path": "@LOCAL/objects/source/math.cl:3-3"
+    },
+    {
+        "icon": "math_asin.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Asin",
+        "source_path": "@LOCAL/objects/source/math.cl:4-4"
+    },
+    {
+        "icon": "math_acos.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Acos",
+        "source_path": "@LOCAL/objects/source/math.cl:5-5"
+    },
+    {
+        "icon": "math_atan.svg",
+        "category": "math",
+        "sub_category": "Waves",
+        "name": "Atan",
+        "source_path": "@LOCAL/objects/source/math.cl:6-6"
+    },
+    {
+        "icon": "math_add.svg",
+        "category": "math",
+        "sub_category": "Operations",
+        "name": "Add",
+        "source_path": "@LOCAL/objects/source/math.cl:8-8"
+    },
+    {
+        "icon": "math_sub.svg",
+        "category": "math",
+        "sub_category": "Operations",
+        "name": "Subtract",
+        "source_path": "@LOCAL/objects/source/math.cl:9-9"
+    },
+    {
+        "icon": "math_add.svg",
+        "category": "math",
+        "sub_category": "Operations",
+        "name": "Multiply",
+        "source_path": "@LOCAL/objects/source/math.cl:10-10"
+    },
+    {
+        "icon": "math_add.svg",
+        "category": "math",
+        "sub_category": "Operations",
+        "name": "Divide",
+        "source_path": "@LOCAL/objects/source/math.cl:11-11"
+    },
+    {
+        "icon": "math_abs.svg",
+        "category": "math",
+        "sub_category": "Functions",
+        "name": "Absolute",
+        "source_path": "@LOCAL/objects/source/math.cl:13-13"
+    },
+    {
+        "icon": "math_mod.svg",
+        "category": "math",
+        "sub_category": "Functions",
+        "name": "Modulo",
+        "source_path": "@LOCAL/objects/source/math.cl:14-14"
+    },
+    {
+        "icon": "math_floor.svg",
+        "category": "math",
+        "sub_category": "Functions",
+        "name": "Floor",
+        "source_path": "@LOCAL/objects/source/math.cl:15-15"
+    },
+    {
+        "icon": "math_fract.svg",
+        "category": "math",
+        "sub_category": "Functions",
+        "name": "Fract",
+        "source_path": "@LOCAL/objects/source/math.cl:16-16"
+    },
+    
+    
+    { "icon": "vec_split2x.svg", "category": "math", "sub_category": "vector2", "name": "vec2x", "source_path": "@LOCAL/objects/source/math.cl:18-18" },
+    { "icon": "vec_split2y.svg", "category": "math", "sub_category": "vector2", "name": "vec2y", "source_path": "@LOCAL/objects/source/math.cl:19-19" },
+    { "icon": "vec_split3x.svg", "category": "math", "sub_category": "vector3", "name": "vec3x", "source_path": "@LOCAL/objects/source/math.cl:21-21" },
+    { "icon": "vec_split3y.svg", "category": "math", "sub_category": "vector3", "name": "vec3y", "source_path": "@LOCAL/objects/source/math.cl:22-22" },
+    { "icon": "vec_split3z.svg", "category": "math", "sub_category": "vector3", "name": "vec3z", "source_path": "@LOCAL/objects/source/math.cl:23-23" },
+    { "icon": "vec_split4x.svg", "category": "math", "sub_category": "vector4", "name": "vec4x", "source_path": "@LOCAL/objects/source/math.cl:25-25" },
+    { "icon": "vec_split4y.svg", "category": "math", "sub_category": "vector4", "name": "vec4y", "source_path": "@LOCAL/objects/source/math.cl:26-26" },
+    { "icon": "vec_split4z.svg", "category": "math", "sub_category": "vector4", "name": "vec4z", "source_path": "@LOCAL/objects/source/math.cl:27-27" },
+    { "icon": "vec_split4w.svg", "category": "math", "sub_category": "vector4", "name": "vec4w", "source_path": "@LOCAL/objects/source/math.cl:28-28" },
+    
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float", "source_path": "@LOCAL/objects/source/const.cl:1-1" },
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float2", "source_path": "@LOCAL/objects/source/const.cl:2-2" },
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float3", "source_path": "@LOCAL/objects/source/const.cl:3-3" },
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float4", "source_path": "@LOCAL/objects/source/const.cl:4-4" },
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float8", "source_path": "@LOCAL/objects/source/const.cl:5-5" },
+    { "icon": "const_float.svg", "category": "constant", "sub_category": "float", "name": "float16", "source_path": "@LOCAL/objects/source/const.cl:6-9" },
+    
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double", "source_path": "@LOCAL/objects/source/const.cl:11-11" },
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double2", "source_path": "@LOCAL/objects/source/const.cl:12-12" },
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double3", "source_path": "@LOCAL/objects/source/const.cl:13-13" },
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double4", "source_path": "@LOCAL/objects/source/const.cl:14-14" },
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double8", "source_path": "@LOCAL/objects/source/const.cl:15-15" },
+    { "icon": "const_double.svg", "category": "constant", "sub_category": "double", "name": "double16", "source_path": "@LOCAL/objects/source/const.cl:16-19" },
+    
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int", "source_path": "@LOCAL/objects/source/const.cl:21-21" },
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int2", "source_path": "@LOCAL/objects/source/const.cl:22-22" },
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int3", "source_path": "@LOCAL/objects/source/const.cl:23-23" },
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int4", "source_path": "@LOCAL/objects/source/const.cl:24-24" },
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int8", "source_path": "@LOCAL/objects/source/const.cl:25-25" },
+    { "icon": "const_int.svg", "category": "constant", "sub_category": "int", "name": "int16", "source_path": "@LOCAL/objects/source/const.cl:26-29" },
+    
+    { "icon": "const_bool.svg", "category": "constant", "sub_category": "bool", "name": "bool", "source_path": "@LOCAL/objects/source/const.cl:31-31" },
+    
+    { "icon": "material.svg",    "category": "constant", "sub_category": "Material", "name": "New Material", "source_path": "@LOCAL/objects/source/const.cl:35-37" }
+]
