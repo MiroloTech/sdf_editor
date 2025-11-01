@@ -75,7 +75,7 @@ pub fn (mut cam Camera) react_to_event(event &gg.Event, turn_speed f64) {
 
 
 // Make camera move based on active keys in camera. Make sure to call .react_to_event to determine, where to move the camera
-pub fn (mut cam Camera) update(move_speed f64) {
+pub fn (mut cam Camera) update(move_speed f64, delta f64) {
 	mut v := Vec3{0, 0, 0}
 	cam_dir := cam.get_dir()
 	if (cam.key_map >> 5) & 0b000001 == 1 { v += cam_dir }              // w
@@ -85,7 +85,8 @@ pub fn (mut cam Camera) update(move_speed f64) {
 	if (cam.key_map >> 1) & 0b000001 == 1 { v += Vec3{0, -1, 0} }       // q
 	if (cam.key_map     ) & 0b000001 == 1 { v += Vec3{0, 1, 0} }        // e
 	
-	v *= Vec3{move_speed, move_speed, move_speed}
+	v *= Vec3.v(move_speed)
+	v *= Vec3.v(delta)
 	cam.pos += v
 }
 

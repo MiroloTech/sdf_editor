@@ -66,117 +66,20 @@ inline float mod(float v, float s) {
 
 
 
-inline Sample sdfBox(float3 p, float3 bounds, Material material) {
-    const float3 q = abs3(p) - bounds;
-    material.dist = length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
-    return material;
-}
-
-
-inline Material   newMaterial( float3 color, bool unshaded ) {
-    return (Material)(color.r, color.g, color.b, (float)(unshaded), 0.0f, 0.0f, 0.0f,   0.0f);
-}
-
-
-inline float3  Float3( float x,  float y,  float z                                                    )  { return (float3)(x, y, z); }
-
-
-
-
-inline float f_v3x(float3 v) {             return v.x;                         }
-
-
-inline float f_v3y(float3 v) {             return v.y;                         }
-
-
-inline float f_v3z(float3 v) {             return v.z;                         }
-
-
-inline float f_add(float a, float b) {     return a + b;                       }
-
-inline float f_sin(float x) {              return sin(x);                      }
-
-
-inline float f_mul(float a, float b) {     return a * b;                       }
-
-
-inline float f_cos(float x) {              return cos(x);                      }
-
-
-
-// ======== SDF FUNCTIONS ========
-
-/*
-inline float8 sdfPlane(float3 p, float3 n, float h, float8 material) {
-    material.dist = fabs(dot(p, n) + h);
-    return material;
-}
-
-inline float8 sdfSphere(float3 p, float r, float8 material) {
+inline Sample sdfSphere(float3 p, float r, Material material) {
     material.dist = length(p) - r;
     return material;
 }
 
-inline float8 sdfBox(float3 p, float3 bounds, float8 material) {
-    const float3 q = abs3(p) - bounds;
-    material.dist = length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
-    return material;
-}
 
-
-
-inline float8 opUnion(float8 a, float8 b) {
-    // return select(a, b, (int4)(a.w < b.w));
-    return a.dist < b.dist ? a : b;
-}
-
-
-inline float8 opSmoothUnion(float8 a, float8 b, float k) {
-    float diff = fabs(a.dist - b.dist);
-
-    // If distances are far apart, skip blending
-    if (diff >= 6.0f * k) {
-        return opUnion(a, b);
-    }
-    
-    const float h = 1.0 - min(fabs(a.dist - b.dist) / (6.0f * k), 1.0f);
-    const float w = h * h * h;
-    const float m = w * 0.5f;
-    const float s = w * k;
-    if (a.dist < b.dist) {
-        float8 sample = mix(a, b, m);
-        sample.dist = a.dist - s;
-        return sample;
-    } else {
-        float8 sample = mix(a, b, 1.0f - m);
-        sample.dist = b.dist - s;
-        return sample;
-    }
-}
-*/
 
 
 // ======== SCENE ========
 
 float8 map(float3 p, float time) {
-	float var57 = time;
-	float var62 = f_mul(var57, 6.0);
-	float var67 = f_cos(var62);
-	float var59 = f_sin(var62);
-	float3 var31 = p;
-	float var37 = f_v3z(var31);
-	float var73 = f_mul(var67, 5.0);
-	float var33 = f_v3x(var31);
-	float var70 = f_mul(var59, 5.0);
-	float3 var26 = Float3(0.9500002, 0.09999515, 0.8999998);
-	float var65 = f_add(var73, var37);
-	float var35 = f_v3y(var31);
-	float var56 = f_add(var70, var33);
-	float8 var22 = newMaterial(var26, 0.0);
-	float3 var30 = Float3(2.0, 2.0, 2.0);
-	float3 var41 = Float3(var56, var35, var65);
-	float8 var19 = sdfBox(var41, var30, var22);
-return var19;
+	float3 var_9072101770687290705 = p;
+	float8 var_17834415019114828961 = sdfSphere(var_9072101770687290705, 0.7, 0);
+	return var_17834415019114828961;
 }
 
 float8 march(float3 ro, float3 rd, float time) {
@@ -283,8 +186,6 @@ __kernel void raymarching_fast(
         float fov,
         float cam_pos_x, float cam_pos_y, float cam_pos_z,
         float cam_dir_x, float cam_dir_y, float cam_dir_z,
-        // float cam_pos_x, float cam_pos_y, float cam_pos_z,
-        // float cam_dir_x, float cam_dir_y, float cam_dir_z,
         float time
 ) {
     const int width = get_global_size(0);

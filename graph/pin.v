@@ -1,162 +1,139 @@
 module graph
 
-import gg
-import sokol.sapp
-
-import std.geom2 { Vec2 }
 import std { Color }
-import objects { TypeData }
+import std.geom2 { Vec2 }
 
-pub type PinValue = f32 | f64 | int
+import gg
 
-pub fn (value PinValue) str() string {
-	match value {
-		f32 { return "${value as f32}" }
-		f64 { return "${value as f64}" }
-		else { return "${value as int}" }
-	}
+pub enum PinShape {
+	circle
+	diamond
+	square
+	circle_dot
+	diamond_dot
+	square_dot
 }
 
-pub fn (mut value PinValue) add(v f64) {
-	match value {
-		f32   { value = value as f32 + f32(v * 0.5) }
-		f64   { value = value as f64 + f64(v * 0.5) }
-		int   { value = value as int + int(v) }
-	}
+pub struct UIPinStyle {
+	pub mut:
+	dot_color    Color             = Color.hex("#232323")
+	text_color   Color             = Color.hex("#c8c8c8")
+	
+	size         f64               = 4.0
+	text_padd    f64               = 8.0
+	preview_padd f64               = 8.0
+	height       f64               = 15.0
+	text_size    int               = 12
 }
-
 
 @[heap]
-pub struct GraphPin {
+pub struct UIPin {
 	pub mut:
-	uid               u64
-	idx               int
-	name              string
-	color             Color
-	typ               string
-	shape             PinShape
-	is_input          bool
-	variable_name     string
-	pos               Vec2
-	type_data         TypeData
-	custom_value      ?PinValue
-	// node              &GraphNode           = unsafe { nil }
+	name         string            = "unnamed"
+	color        Color             = Color.hex("#ff0000")
+	shape        PinShape          = .circle
+	is_input     bool              = true
+	uid          u64
+	is_connected bool
 	
-	mut:
-	editing           bool
-	tenth             bool
-	is_connected      bool
+	style        UIPinStyle        = UIPinStyle{}
+	custom_pos   Vec2              = Vec2.zero()                 // Used for the mouse pin, which is not attached to any node, but still needs a definitive position
+	
+	custom_value ?CustomPinData
 }
 
 
-pub fn (mut pin GraphPin) init() {
-	if pin.is_input {
-		match pin.typ {
-			"float"    { pin.custom_value = f32(0.0) }
-			"double"   { pin.custom_value = f64(0.0) }
-			"int"      { pin.custom_value = int(0.0) }
-			else       { pin.custom_value = none }
-		}
-	}
-}
-
-// returns true, if the pin can hold a custom default value, if not connection is given
-pub fn (pin GraphPin) can_draw_custom() bool {
-	return pin.typ in ["float", "double", "int"]
-}
-
-pub fn (pin GraphPin) draw(mut ctx gg.Context, x f64, y f64, size f64, style Style) {
-	// Draw pin shape
+// Draw pin at given position and given size into given context
+pub fn (pin UIPin) draw(mut ctx gg.Context, pos Vec2, pin_width f64) {
+	pin_size := pin.style.size
+	
+	// > Draw BG Shape
 	match pin.shape {
-		.diamond {
-			s := size * 0.5
-			ctx.draw_convex_poly(
-				[
-					f32(x - s), f32(y),
-					f32(x),     f32(y - s),
-					f32(x + s), f32(y),
-					f32(x),     f32(y + s),
-				],
-				pin.color.get_gx()
-			)
-		}
-		.square {
-			ctx.draw_square_filled(
-				f32(x), f32(y),
-				f32(size),
-				pin.color.get_gx()
-			)
-		}
-		else {
+		.circle, .circle_dot {
 			ctx.draw_circle_filled(
-				f32(x), f32(y),
-				f32(size * 0.4),
+				f32(pos.x), f32(pos.y),
+				f32(pin_size),
+				pin.color.get_gx()
+			)
+		}
+		.diamond, .diamond_dot {
+			s := pin_size
+			pts := [
+				f32( 0.0*s),   f32( 1.0*s),
+				f32( 1.0*s),   f32( 0.0*s),
+				f32( 0.0*s),   f32(-1.0*s),
+				f32(-1.0*s),   f32( 0.0*s)
+			]
+			ctx.draw_convex_poly(
+				pts, pin.color.get_gx()
+			)
+		}
+		.square, .square_dot {
+			ctx.draw_square_filled(
+				f32(pos.x), f32(pos.y),
+				f32(pin_size),
 				pin.color.get_gx()
 			)
 		}
 	}
 	
-	// Draw custom value, if neccessary
-	if pin.is_input && pin.can_draw_custom() && pin.custom_value != none && !pin.is_connected {
-		// > Draw BG
-		s := style.pin_spacing + style.pin_size * 0.5
-		ctx.draw_rounded_rect_filled(
-			f32(x + s), f32(y - style.pin_input_height * 0.5),
-			f32(style.node_width - s - style.pin_spacing * 0.5), f32(style.pin_input_height),
-			f32(style.node_rounding),
-			Color.hex("#ffffff44").get_gx()
-		)
-		
-		// > Draw value
-		ctx.draw_text(
-			int(x + s + 4.0), int(y),
-			pin.custom_value.str(),
-			color: style.text_color.get_gx()
-			size: int(style.pin_input_height - 2.0)
-			vertical_align: .middle
+	// > Draw Pin dot
+	if pin.shape in [PinShape.circle_dot, PinShape.diamond_dot, PinShape.square_dot] {
+		ctx.draw_circle_filled(
+			f32(pos.x), f32(pos.y),
+			f32(pin_size),
+			pin.color.darken(0.5).get_gx()
 		)
 	}
-}
-
-
-pub fn (mut pin GraphPin) event(event &gg.Event, style Style) {
-	if pin.is_input && pin.can_draw_custom() && pin.custom_value != none && !pin.is_connected {
-		// > Draw BG
-		s := style.pin_spacing + style.pin_size * 0.5
-		from := Vec2{pin.pos.x + s, pin.pos.y - style.pin_input_height * 0.5}
-		to := from + Vec2{style.node_width - s - style.pin_spacing * 0.5, style.pin_input_height}
-		
-		if event.typ == .mouse_move && pin.editing {
-			if pin.tenth {
-				pin.custom_value.add(f64(event.mouse_dx) * 0.1)
-			} else {
-				pin.custom_value.add(f64(event.mouse_dx))
-			}
-		}
-		
-		if event.typ == .mouse_down && event.mouse_button == .left {
-			mpos := Vec2{event.mouse_x, event.mouse_y}
-			if from.x <= mpos.x && mpos.x < to.x  &&  from.y <= mpos.y && mpos.y < to.y {
-				pin.editing = true
-				pin.tenth = false
-				sapp.show_mouse(false)
-			}
-		}
-		if event.typ == .mouse_up && event.mouse_button == .left {
-			pin.editing = false
-			pin.tenth = false
-			sapp.show_mouse(true)
-		}
-		
-		if event.typ == .key_down && event.key_code == .left_shift {
-			pin.tenth = true
-		}
-		if event.typ == .key_up {
-			pin.tenth = false
+	
+	
+	// > Draw preview
+	if pin.custom_value != none && !pin.is_connected {
+		cv_pos := pos + Vec2{pin.style.preview_padd, -pin.style.height * 0.5}
+		cv_size := Vec2{pin_width - pin.style.preview_padd * 2.0, pin.style.height}
+		pin.custom_value.draw(mut ctx, cv_pos, cv_size, pin.name)
+	}
+	// > Draw text
+	else {
+		if pin.is_input {
+			ctx.draw_text(
+				int(pos.x + pin.style.text_padd), int(pos.y),
+				pin.name,
+				
+				size: pin.style.text_size
+				align: .left
+				vertical_align: .middle
+				color: pin.style.text_color.get_gx()
+			)
+		} else {
+			ctx.draw_text(
+				int(pos.x - pin.style.text_padd), int(pos.y),
+				pin.name,
+				
+				size: pin.style.text_size
+				align: .right
+				vertical_align: .middle
+				color: pin.style.text_color.get_gx()
+			)
 		}
 	}
+	
+	/*
+	// DEBUG
+	ctx.draw_text(
+		int(pos.x), int(pos.y - 15.0),
+		"${pin.uid}",
+		
+		size: 12
+		color: pin.color.get_gx()
+	)
+	*/
 }
 
-pub fn (pin GraphPin) get_variable() string {
-	return "var${pin.uid}"
+pub fn (mut pin UIPin) event(event &gg.Event, pos Vec2, pin_width f64) {
+	if pin.custom_value != none && !pin.is_connected {
+		cv_pos := pos + Vec2{pin.style.preview_padd, -pin.style.height * 0.5}
+		cv_size := Vec2{pin_width - pin.style.preview_padd * 2.0, pin.style.height}
+		pin.custom_value.event(event, cv_pos, cv_size)
+	}
 }

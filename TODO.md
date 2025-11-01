@@ -137,9 +137,6 @@ return tokens
 
 
 
-# TODO : Add input for basic values, when field is int, float or double
-# TODO : Turn connections into series of custom variables and function calls
-# TODO : Transfer custom series to shader
 
 
 # Graph to Shader
@@ -176,3 +173,20 @@ lines.reverse_in_place()
 
 ```
 
+
+# TODO -> V 0.1
+
+- Add Saving and Loading
+- Add Node Combinations to allow for multiple outputs
+- Display Render time and computation time seperately
+- Allow the graph field to resize
+- Add graph zooming
+- Allow for multi-selection
+- Add floating pins
+- Add Camera settings
+- Block invalid connection conversions
+- Multiline Toasts
+
+# FIXES
+
+- Fix weird toast height offset, when a toast with mutliple lines is shown

@@ -6,19 +6,22 @@ import math
 import os
 // import stbi
 
-import graph { Graph, GraphNode, ContextMenu }
+import graph { Graph }
+import std { Color }
 import std.geom2 { Vec2 }
 import std.geom3 { Vec3 }
 import objects { Node, NodeArgument }
 
+
 const window_width = 1600
 const window_height = 900
 const chunk_size = 1
-const camera_move_speed = 1.0
+const camera_move_speed = 40.0
 const camera_turn_speed = 0.6
 
 const cl_shader_fn_replace_keyword := "//@FUNCTIONS_HERE"
 const cl_shader_map_replace_keyword := "//@MAP_SRC_HERE"
+
 
 @[heap]
 pub struct App {
@@ -26,12 +29,14 @@ pub struct App {
 	ctx                &gg.Context       = unsafe { nil }
 	time               f64
 	down_sampling      int               = 3
+	frame_timer        time.StopWatch    = time.new_stopwatch()
+	delta              f64               = 1.0
 	
 	renderer           Renderer          = Renderer{}
 	camera             Camera            = Camera{pos: Vec3{0, 4, -5}}
 	
 	node_graph_split   f64               = 0.5 // 0 is full node graph
-	node_graph         Graph             = Graph{}
+	node_graph         Graph[Node]       = Graph[Node]{}
 	nodes              []Node            = []Node{}
 }
 
@@ -84,27 +89,12 @@ pub fn (mut app App) init() {
 		no_compile:       true
 	}
 	
+	// Create matching UINode for every valid Node
 	for node in app.nodes {
-		app.node_graph.registered_nodes[node.get_ctx_path()] = node
+		app.node_graph.set_node_selection(node.get_ctx_path("/"), node2uinode(node))
 	}
 	
-	
-	// > Test for graph nodes
-	/*
-	for _ in 0..1 {
-		for node in app.nodes {
-			mut graph_node := GraphNode.new_from_cl_node(node)
-			graph_node.pos.x = rand.f64() * 1400.0
-			graph_node.pos.y = rand.f64() * 350.0
-			app.node_graph.nodes << graph_node
-		}
-	}
-	*/
-	
-	// Fill context menu with all possible nodes
-	for node in app.nodes {
-		app.node_graph.ctx_menu.add_option(node.get_ctx_path())
-	}
+	app.node_graph.toast("Welcome", .hint)
 	
 	// Init renderer
 	app.renderer.init() or {
@@ -129,14 +119,14 @@ pub fn (mut app App) frame() {
 	}
 	
 	// Update camera
-	app.camera.update(camera_move_speed)
+	app.camera.update(camera_move_speed, app.delta)
 	
 	// Update image
 	app.renderer.run_raymarching(mut app.ctx, app.camera) or {
 		println("Can't run raymarching script : ${err}")
 		return
 	}
-		
+	
 	app.ctx.begin()
 	
 	// Draw image
@@ -157,15 +147,24 @@ pub fn (mut app App) frame() {
 	
 	// Draw Graph
 	app.node_graph.pos =  Vec2{0,                      f64(window_size.height) * app.node_graph_split}
-	app.node_graph.size = Vec2{f64(window_size.width), f64(window_size.height) * 1.0 - app.node_graph_split}
+	app.node_graph.size = Vec2{f64(window_size.width), f64(window_size.height) * (1.0 - app.node_graph_split)}
+	app.ctx.draw_rect_filled(
+		int(app.node_graph.pos.x), int(app.node_graph.pos.y),
+		int(app.node_graph.size.x), int(app.node_graph.size.y),
+		Color.hex("#232323").get_gx()
+	)
 	app.node_graph.draw(mut app.ctx)
 	
 	app.ctx.end()
+	
+	// Update frame timer
+	app.delta = app.frame_timer.elapsed().seconds()
+	app.frame_timer.restart()
 }
 
 
 pub fn (mut app App) event(event &gg.Event, _ voidptr) {
-	app.node_graph.event(event)
+	app.node_graph.event(event, mut app.ctx)
 	app.camera.react_to_event(event, camera_turn_speed)
 	
 	if event.typ == .key_down {
@@ -173,24 +172,42 @@ pub fn (mut app App) event(event &gg.Event, _ voidptr) {
 		if event.key_code == .f5 {
 			source := app.build_source() or {
 				println("Can't build source : ${err}")
+				last_err := "${err}".all_after_last(" : ")
+				// app.node_graph.toast("Can't build source code : ${err}".replace(" : ", "\n"), .error)
+				app.node_graph.toast("Can't build source code\n${last_err}", .error)
 				return
 			}
 			
 			app.renderer.recompile(source) or {
 				println("Can't recompile shader : ${err}")
+				last_err := "${err}".all_after_last(" : ")
+				// app.node_graph.toast("Can't recompile shader : ${err}".replace(" : ", "\n"), .error)
+				app.node_graph.toast("Can't build source code\n${last_err}", .error)
 				return
 			}
+		}
+		
+		// Upsample
+		if event.key_code == .left_bracket {
+			if app.down_sampling > 1 { app.down_sampling -= 1 }
+		}
+		
+		// Downsample
+		if event.key_code == .right_bracket {
+			if app.down_sampling < 8 { app.down_sampling += 1 }
 		}
 	}
 }
 
 
 pub fn (app App) build_source() !string {
+	// source := get_cl_source_code(&app.node_graph) or { return error("Error while compiling source code : ${err}") }
+	// println(source)
 	mut base_source := os.read_file(os.join_path("${@VMODROOT}", "shader/raymarching_fast.cl")) or { return error("Can't read base shader source : ${err}") }
-	used_fns := app.node_graph.get_all_used_functions()
-	map_source := app.node_graph.get_cl_source_code() or {
-		println("Can't convert graph to lines of code : ${err}")
-		"\treturn (float8)(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);"
+	used_fns := get_all_used_functions(app.node_graph)
+	map_source := get_cl_source_code(&app.node_graph) or {
+		return error("Can't convert graph to lines of code : ${err}")
+		// "\treturn (float8)(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);"
 	}
 	
 	if !base_source.contains(cl_shader_fn_replace_keyword) {
@@ -209,6 +226,7 @@ pub fn (app App) build_source() !string {
 	}
 	
 	return base_source
+	// return error("TODO : Reimplimentation of the building of the source code")
 }
 
 

@@ -154,5 +154,11 @@
     
     { "icon": "const_bool.svg", "category": "constant", "sub_category": "bool", "name": "bool", "source_path": "@LOCAL/objects/source/const.cl:31-31" },
     
-    { "icon": "material.svg",    "category": "constant", "sub_category": "Material", "name": "New Material", "source_path": "@LOCAL/objects/source/const.cl:35-37" }
+    { "icon": "material.svg",   "category": "constant", "sub_category": "Material", "name": "New Material", "source_path": "@LOCAL/objects/source/const.cl:35-37" },
+    
+    
+    { "icon": "sdf_union.svg",            "category": "shape", "sub_category": "operators", "name": "Union",          "source_path": "@LOCAL/objects/source/operators.cl:16-18" },
+    { "icon": "sdf_sub.svg",              "category": "shape", "sub_category": "operators", "name": "Subtraction",    "source_path": "@LOCAL/objects/source/operators.cl:20-22" },
+    { "icon": "sdf_inter.svg",            "category": "shape", "sub_category": "operators", "name": "Intersection",   "source_path": "@LOCAL/objects/source/operators.cl:24-26" },
+    { "icon": "sdf_smooth_union.svg",     "category": "shape", "sub_category": "operators", "name": "Smooth Union",   "source_path": "@LOCAL/objects/source/operators.cl:28-43" }
 ]

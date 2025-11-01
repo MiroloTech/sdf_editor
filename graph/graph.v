@@ -1,556 +1,498 @@
 module graph
 
 import gg
-import math
 import sokol.sapp
+import math { mod, floor }
+import time as timelib
+import rand
 
-import std { Color }
 import std.geom2 { Vec2 }
-import objects { Node }
+import std { Color }
 
-const output_node_name := "Output"
-
-__global (
-	global_pin_count = u64(1)
-)
-
-pub struct Style {
-	pub mut:
-	bg_color               Color         = Color.hex("#1d1d1d")
-	node_color             Color         = Color.hex("#303030")
-	node_broder_color      Color         = Color.hex("#ffffff")
-	text_color             Color         = Color.hex("#ffffff")
-	ctx_menu_color         Color         = Color.hex("#101010")
-	
-	title_height           f64           = 15.0
-	node_width             f64           = 100.0
-	node_rounding          f64           = 3.0
-	pin_input_height       f64           = 18.0
-	pin_spacing            f64           = 20.0
-	pin_size               f64           = 10.0
-	pin_text_spacing       f64           = 5.0
-	pin_text_size          int           = 12
-	hover_border           f64           = 4.0
-	pan_speed              f64           = 1.0
-	bg_dot_interval        f64           = 50.0
-	bg_dot_size            f64           = 2.0
-	line_width             f64           = 4.0
-	
-	ctx_menu_width         f64           = 90.0
-	ctx_menu_rounding      f64           = 6.0
-	ctx_menu_option_height f64           = 20.0
-	ctx_menu_padding       f64           = 4.0
-	
-	// TODO : Add custom font support
-}
 
 @[heap]
-pub struct Graph {
+pub struct Graph[T] {
 	pub mut:
-	nodes             []GraphNode
-	connections       []GraphConnection
-	registered_nodes  map[string]Node
-	style             Style             = Style{}
-	ctx_menu          ContextMenu       = ContextMenu{}
+	nodes            []&UINode[T]            = []
+	connections      []&UIConnection[T]      = []
+	preview_conn     UIConnection[T]
+	preview_pin      UIPin                   = UIPin{}
 	
-	foucsed_node      int               = -1
-	dragging_node     int               = -1
-	panning           bool
-	curr_connection   GraphConnection   = GraphConnection{}
-	mouse_pin         GraphPin          = GraphPin{color: Color.hex("#00000000")}
-	variables         int
+	// Controls
+	pin_range        f64                     = 8.0              // Max range for the mouse to react to a pin
+	pan              Vec2
+	dot_spacing      f64                     = 50.0
+	pixel_spacing    f64                     = 10.0
+	toast_lifetime   f64                     = 4.0
+	pos              Vec2                    = Vec2{0, 0}
+	size             Vec2                    = Vec2{600, 400}
+	snap             bool                    = true
+	snap_size        f64                     = 10.0
 	
-	pan               Vec2
-	pos               Vec2
-	size              Vec2
+	mut:
+	node_selection   map[string]UINode[T]
+	toasts           []Toast
+	delta_timer      timelib.StopWatch       = timelib.new_stopwatch()
+	
+	// UI References
+	moving_node      &UINode[T]              = unsafe { nil }
+	focused_node     &UINode[T]              = unsafe { nil }
+	focused_pin      &UIPin                  = unsafe { nil }
+	dragging         bool
+	menu             Menu                    = Menu{
+		delimiter: "/"
+		options: [
+			/*
+			"drinks/coke"
+			"drinks/water"
+			"drinks/juice/cranberry"
+			"drinks/juice/apple"
+			"food/toast"
+			"food/pizza/peperoni"
+			"pets"
+			*/
+		]
+		focus: "" // drinks/juice/apple
+	}
 }
 
-pub fn (mut node_graph Graph) draw(mut ctx gg.Context) {
-	// Draw BG
-	ctx.draw_rect_filled(
-		f32(node_graph.pos.x), f32(node_graph.pos.y),
-		f32(node_graph.size.x), f32(node_graph.size.y),
-		node_graph.style.bg_color.get_gx()
-	)
+
+// ======== UI ========
+
+pub fn (mut g Graph[T]) draw(mut ctx gg.Context) {
 	ctx.scissor_rect(
-		int(node_graph.pos.x), int(node_graph.pos.y),
-		int(node_graph.size.x), int(node_graph.size.y),
+		int(g.pos.x), int(g.pos.y),
+		int(g.size.x), int(g.size.y),
 	)
 	
-	// Draw BG dots
-	for x in 0..int(node_graph.size.x / node_graph.style.bg_dot_interval + 2) {
-		for y in 0..int(node_graph.size.y / node_graph.style.bg_dot_interval + 2) {
-			poff := Vec2{math.mod(node_graph.pan.x, node_graph.style.bg_dot_interval), math.mod(node_graph.pan.y, node_graph.style.bg_dot_interval)}
-			p := Vec2{x * node_graph.style.bg_dot_interval, y * node_graph.style.bg_dot_interval} + poff
-			ctx.draw_circle_filled(
-				f32(p.x), f32(p.y),
-				f32(node_graph.style.bg_dot_size),
-				Color.hex("#ffffff22").get_gx()
+	window_size := Vec2{f64(ctx.window_size().width), f64(ctx.window_size().height)}
+	
+	
+	// Draw BG Dots for orientation
+	for x in 0..int(window_size.x / g.dot_spacing + 2) {
+		for y in 0..int(window_size.y / g.dot_spacing + 2) {
+			pos := Vec2{x * g.dot_spacing, y * g.dot_spacing} + Vec2{mod(g.pan.x, g.dot_spacing), mod(g.pan.y, g.dot_spacing)}
+			ctx.draw_pixel(
+				f32(pos.x), f32(pos.y),
+				Color.hex("#ffffff11").get_gx(),
+				size: 2.0
+			)
+			
+			// Draw chunk of smaller BG Dots
+			mut pts := []f32{}
+			for x2 in 0..int(g.dot_spacing / g.pixel_spacing) {
+				for y2 in 0..int(g.dot_spacing / g.pixel_spacing) {
+					pts << f32(pos.x + f64(x2) * g.pixel_spacing)
+					pts << f32(pos.y + f64(y2) * g.pixel_spacing)
+				}
+			}
+			
+			ctx.draw_pixels(
+				pts,
+				Color.hex("#66666616").get_gx()
 			)
 		}
 	}
 	
 	// Draw nodes
-	for i, mut node in node_graph.nodes {
-		is_focused := node_graph.foucsed_node == i
-		world_offset := node_graph.pos + node_graph.pan
-		node.draw_node(
-			mut ctx,
-			node_graph.style,
-			world_offset,
-			is_focused
-		)
+	for node in g.nodes {
+		node.draw(mut ctx, Vec2.zero())
 	}
 	
 	// Draw connections
-	mut active_connections := node_graph.connections.clone()
-	active_connections << node_graph.curr_connection
-	for connection in active_connections {
-		if !(connection.from == unsafe { nil } || connection.to == unsafe { nil }) {
-			ctx.draw_line_with_config(
-				f32(connection.from.pos.x), f32(connection.from.pos.y - node_graph.style.line_width * 0.5),
-				f32(connection.to.pos.x), f32(connection.to.pos.y - node_graph.style.line_width * 0.5),
-				thickness: f32(node_graph.style.line_width)
-				color: connection.from.color.get_gx()
-			)
-		}
+	for conn in g.connections {
+		conn.draw(mut ctx)
 	}
 	
-	// Draw Context Menu
-	node_graph.ctx_menu.draw(mut ctx, node_graph.style)
+	// Draw preview connection
+	if g.dragging {
+		g.preview_conn.draw_pin_bridge(
+			mut ctx,
+			g.preview_conn.node_a.pins[g.preview_conn.pin_idx_a],
+			&g.preview_pin,
+			g.preview_conn.node_a.get_pin_pos(g.preview_conn.pin_idx_a),
+			g.preview_pin.custom_pos
+		)
+	}
+	
+	g.menu.draw(mut ctx)
+	
+	g.manage_toasts(mut ctx)
 }
 
-
-pub fn (mut node_graph Graph) event(event &gg.Event) {
-	mut mpos := Vec2{event.mouse_x, event.mouse_y}
-	if !(node_graph.pos.x < mpos.x && mpos.x < node_graph.pos.x + node_graph.size.x  &&  node_graph.pos.y < mpos.y && mpos.y < node_graph.pos.y + node_graph.size.y) {
-		sapp.set_mouse_cursor(.default)
+pub fn (mut g Graph[T]) event(event &gg.Event, mut ctx gg.Context) {
+	sapp.set_mouse_cursor(.default)
+	
+	mpos := Vec2{event.mouse_x, event.mouse_y}
+	if mpos.x < g.pos.x || mpos.y < g.pos.y  ||   mpos.x >= g.pos.x + g.size.x || mpos.y >= g.pos.y + g.size.y {
 		return
 	}
 	
-	for mut pin in node_graph.get_all_pins() {
-		is_connected := node_graph.get_connections_at_pin(*pin).len > 0
-		pin.is_connected = is_connected
-		pin.event(event, node_graph.style)
-	}
-	node_graph.ctx_menu.event(event, node_graph.style)
+	g.menu.event(event, mut ctx)
 	
-	// > Update mouse data
-	if node_graph.panning {
+	if g.menu.selection != "" {
+		node := g.node_selection[g.menu.selection] or {
+			g.toast("${g.menu.selection} - not a valid node", .warning)
+			return
+		}
+		g.menu.hide()
+		mut new_node := g.add_node(node, mpos - Vec2{8, 8})
+		new_node.focused = true
+		g.focused_node = new_node
+	}
+	
+	g.ctrl_zoom(event)
+	g.ctrl_nodes(event)
+	g.ctrl_connections(event)
+	
+	if event.typ == .mouse_down && int(event.mouse_button) == 0b1 {
+		g.menu.visible = true
+		g.menu.focus = "/"
+		g.menu.pos = mpos - Vec2{8, 8}
+	}
+}
+
+
+// ======== CONTROLLERS ========
+
+
+fn (mut g Graph[T]) ctrl_zoom(event &gg.Event) {
+	if int(event.mouse_button) >> 1 == 0b1 {
+		mrel := Vec2{event.mouse_dx, event.mouse_dy}
+		g.pan += mrel
+		
+		for mut node in g.nodes {
+			node.pos += mrel
+		}
 		sapp.set_mouse_cursor(.resize_all)
-	} else {
-		if node_graph.foucsed_node != -1 {
-			sapp.set_mouse_cursor(.pointing_hand)
-		} else {
-			sapp.set_mouse_cursor(.default)
+	}
+}
+
+
+fn (mut g Graph[T]) ctrl_nodes(event &gg.Event) {
+	mpos := Vec2{event.mouse_x, event.mouse_y}
+	
+	// Trigger event function for evey node
+	for mut node in g.nodes {
+		node.event(event)
+		/*
+		for pin in node.pins {
+			g.toast("Pin ${pin.name}: 0x" + voidptr(pin).hex_full(), .hint)
 		}
+		*/
 	}
 	
+	// Highlight hovered pin
+	g.focused_pin = g.get_closest_pin(mpos) or { unsafe { nil } }
+	g.focused_node = unsafe { nil }
+	if g.focused_pin != unsafe { nil } {
+		sapp.set_mouse_cursor(.pointing_hand)
+		g.focused_node = g.get_node_from_pin(g.focused_pin)
+		if g.focused_node == unsafe { nil } {
+			g.focused_pin = unsafe { nil }
+			g.toast("Tried to highlight node-less pin", .warning)
+			return
+		}
+		return
+	}
 	
-	// > Move nodes
-	if event.typ == .mouse_move {
-		node_graph.mouse_pin.pos = mpos
-		mpos -= node_graph.pos
-		mpos -= node_graph.pan
-		if node_graph.panning {
-			node_graph.pan += Vec2{event.mouse_dx * node_graph.style.pan_speed, event.mouse_dy * node_graph.style.pan_speed}
-		} else {
-			if node_graph.dragging_node == -1 {
-				mut is_hovered := false
-				for i, node in node_graph.nodes {
-					hovering := node.pos.x <= mpos.x && mpos.x < node.pos.x + node.size.x  &&  node.pos.y <= mpos.y && mpos.y < node.pos.y + node_graph.style.title_height
-					if hovering {
-						is_hovered = true
-						node_graph.foucsed_node = i
-						break
-					}
-				}
-				if !is_hovered {
-					node_graph.foucsed_node = -1
-				}
-			} else {
-				node_graph.nodes[node_graph.dragging_node].pos = mpos
+	// Highlight hovered nodes
+	for i, mut node in g.nodes {
+		if node.is_point_inside_head(mpos) && g.focused_pin == unsafe { nil } && event.mouse_button != .left {
+			node.focused = true
+			sapp.set_mouse_cursor(.resize_all)
+			
+			// > Delete hovered node, if button for deletion is pressed
+			if event.typ == .key_down && (event.key_code == .delete  || event.key_code == .x) {
+				g.delete_node(i)
+				g.focused_node = unsafe { nil }
+				g.toast("Node deleted", .hint)
 			}
+			break
+		} else {
+			node.focused = false
 		}
-	}
-	if event.typ == .mouse_down {
-		if event.mouse_button == .left {
-			node_graph.dragging_node = node_graph.foucsed_node
-			if node_graph.foucsed_node != -1 {
-				return
-			}
-		}
-		if event.mouse_button == .middle {
-			node_graph.panning = true
-		}
-	}
-	if event.typ == .mouse_up {
-		if event.mouse_button == .left {
-			node_graph.dragging_node = -1
-		}
-		node_graph.panning = false
 	}
 	
 	
-	// > Move active connection
 	if event.typ == .mouse_down {
-		if event.mouse_button == .left {
-			if node_graph.ctx_menu.selected_path != "" {
-				if node_graph.ctx_menu.selected_path in node_graph.registered_nodes.keys() {
-					node := node_graph.registered_nodes[node_graph.ctx_menu.selected_path] or { return }
-					mpos -= node_graph.pos
-					mpos -= node_graph.pan
-					mut graph_node := GraphNode.new_from_cl_node(node)
-					graph_node.pos.x = mpos.x - node_graph.style.node_width * 0.5
-					graph_node.pos.y = mpos.y - node_graph.style.title_height * 0.5
-					node_graph.nodes << graph_node
-					node_graph.ctx_menu.visible = false
-					node_graph.foucsed_node = node_graph.nodes.len - 1
-					node_graph.dragging_node = node_graph.foucsed_node
-				}
-			} else {
-				hovered_pin := node_graph.get_pin_at_pos(mpos)
-				if hovered_pin != unsafe { nil } {
-					// >> Place Connection
-					if !hovered_pin.is_input {
-						node_graph.curr_connection.from = hovered_pin
-						node_graph.curr_connection.to = &node_graph.mouse_pin
-					}
-					// >> Erase Connection
-					else {
-						for i, connection in node_graph.connections {
-							if *connection.to == *hovered_pin {
-								// >>> Remove old connection
-								node_graph.connections.delete(i)
-								
-								// >>> Represent connection in preview connection
-								node_graph.curr_connection.from = connection.from
-								node_graph.curr_connection.to = &node_graph.mouse_pin
-							}
-						}
-					}
-				}
+		for mut node in g.nodes {
+			if node.is_point_inside_head(mpos) && g.moving_node == unsafe { nil } {
+				g.moving_node = node
 			}
 		}
 	}
 	if event.typ == .mouse_up {
-		if event.mouse_button == .left && node_graph.curr_connection.from != unsafe { nil } {
-			hovered_pin := node_graph.get_pin_at_pos(mpos)
-			if hovered_pin != unsafe { nil } {
-				if are_pins_compatible(*node_graph.curr_connection.from, hovered_pin) && hovered_pin.is_input {
-					// >> Make sure, no other connection is in the pin
-					is_free := node_graph.get_connections_at_pin(hovered_pin).len == 0
-					if is_free {
-						node_graph.curr_connection.to = hovered_pin
-						if node_graph.curr_connection.is_valid() {
-							node_graph.connections << node_graph.curr_connection
-						}
-					}
-				}
-			}
-		}
-		node_graph.curr_connection.from = unsafe { nil }
-		node_graph.curr_connection.to = unsafe { nil }
+		g.moving_node = unsafe { nil }
+		g.focused_node = unsafe { nil }
+		g.focused_pin = unsafe { nil }
 	}
 	
-	if event.typ == .key_down {
-		if event.key_code == .a && event.modifiers & 0b1 == 1 {
-			node_graph.ctx_menu.pos = mpos - Vec2{5, 5}
-			node_graph.ctx_menu.visible = true
-		}
-		if (event.key_code == .delete || event.key_code == .x) && node_graph.foucsed_node != -1 {
-			// > Remove relevant connections
-			mut pins := node_graph.nodes[node_graph.foucsed_node].pins_in.clone()
-			pins << node_graph.nodes[node_graph.foucsed_node].pins_out
-			for pin in pins {
-				for connection in node_graph.get_connections_at_pin(pin) {
-					conn_idx := node_graph.connections.index(*connection)
-					if conn_idx != -1 {
-						node_graph.connections.delete(conn_idx)
-					}
-				}
-			}
-			
-			// > Remove node
-			node_graph.nodes.delete(node_graph.foucsed_node)
-			
-			// > Reset focus
-			node_graph.dragging_node = -1
-			node_graph.foucsed_node = -1
-		}
-	}
-}
-
-
-
-// === PINS ===
-
-// Checks variable compatibillity between the two pins
-pub fn are_pins_compatible(a GraphPin, b GraphPin) bool {
-	return a.type_data.vector_size == b.type_data.vector_size
-}
-
-// Returns a reference of all pins, that take data in. Mainly used to check, which pin is targeted
-pub fn (node_graph Graph) get_all_pins_in() []&GraphPin {
-	mut pins_in := []&GraphPin{}
-	for i, node in node_graph.nodes {
-		for j, _ in node.pins_in {
-			pins_in << &node_graph.nodes[i].pins_in[j]
-		}
-	}
-	return pins_in
-}
-
-// Returns a reference of all pins, that return data. Mainly used to check, which pin is targeted
-pub fn (node_graph Graph) get_all_pins_out() []&GraphPin {
-	mut pins_out := []&GraphPin{}
-	for i, node in node_graph.nodes {
-		for j, _ in node.pins_out {
-			pins_out << &node_graph.nodes[i].pins_out[j]
-		}
-	}
-	return pins_out
-}
-
-// Returns a reference of all pins in the graph
-pub fn (node_graph Graph) get_all_pins() []&GraphPin {
-	mut pins := []&GraphPin{}
-	pins << node_graph.get_all_pins_in()
-	pins << node_graph.get_all_pins_out()
-	return pins
-}
-
-// Returns a reference to the pin at the given position ( accounting for the size of the pins )
-// Returns 'unsafe { nil }', if no pin was found
-pub fn (node_graph Graph) get_pin_at_pos(pos Vec2) &GraphPin {
-	for pin in node_graph.get_all_pins() {
-		dist := pin.pos.distance_to(pos)
-		if dist <= node_graph.style.pin_size {
-			return pin
-		}
-	}
-	
-	return unsafe { nil }
-}
-
-
-pub fn (node_graph Graph) get_node_at_pin(pin GraphPin) &GraphNode {
-	for i, node in node_graph.nodes {
-		for pin_in in node.pins_in {
-			if pin_in == pin {
-				return &node_graph.nodes[i]
-			}
-		}
-		for pin_out in node.pins_out {
-			if pin_out == pin {
-				return &node_graph.nodes[i]
-			}
-		}
-	}
-	return unsafe { nil }
-}
-
-
-
-
-// === CONNECTIONS ===
-
-// Returns a reference to all connections at the given pin. Mainly used, to walk through the graph and to make sure, that every in pin has a max of one connection
-pub fn (node_graph Graph) get_connections_at_pin(pin GraphPin) []&GraphConnection {
-	mut connections_at_pin := []&GraphConnection{}
-	for i, connection in node_graph.connections {
-		if connection.from == unsafe { nil } || connection.to == unsafe { nil } { continue }
-		if *connection.from == pin || *connection.to == pin {
-			connections_at_pin << &node_graph.connections[i]
-		}
-	}
-	return connections_at_pin
-}
-
-
-// === COMPILE ===
-pub fn (mut node_graph Graph) random_variable_name() string {
-	defer { node_graph.variables += 1 }
-	return "var${node_graph.variables}"
-}
-
-pub fn (node_graph Graph) get_output_node() !&GraphNode {
-	mut output := unsafe { nil }
-	for i, node in node_graph.nodes {
-		if node.name == output_node_name {
-			if output != unsafe { nil } {
-				return error("Can't have more than one output node")
-			}
-			output = &node_graph.nodes[i]
-		}
-	}
-	if output == unsafe { nil } {
-		return error("No output node in graph")
-	}
-	return output
-}
-
-pub fn (node_graph Graph) get_left_node(pin GraphPin) ?&GraphNode {
-	for connection in node_graph.connections {
-		// println(connection)
-		if connection.to.uid == pin.uid && connection.from != unsafe { nil } {
-			node := node_graph.get_node_at_pin(*connection.from)
-			if node == unsafe { nil } { continue }
-			return node
-		}
-		else if connection.from.uid == pin.uid && connection.to != unsafe { nil } {
-			node := node_graph.get_node_at_pin(*connection.to)
-			if node == unsafe { nil } { continue }
-			return node
-		}
-	}
-	return none
-}
-
-// Finds the opposite pin of a connection with the given pin and gets the variable name from there
-pub fn (node_graph Graph) get_variable_from_target_pin(pin GraphPin) ?string {
-	for connection in node_graph.connections {
-		// println(connection)
-		if connection.to.uid == pin.uid && connection.from != unsafe { nil } {
-			return connection.from.get_variable()
-		}
-		else if connection.from.uid == pin.uid && connection.to != unsafe { nil } {
-			return connection.to.get_variable()
-		}
-	}
-	return none
-}
-
-fn join_arr[T](arr []T, delimiter string) string {
-	mut s := ""
-	for i, element in arr {
-		if i == arr.len - 1 {
-			s += "${element}"
+	// > Move node
+	if event.mouse_button == .left && g.moving_node != unsafe { nil } && !g.dragging {
+		if g.snap {
+			off := Vec2{mod(g.pan.x, g.snap_size), mod(g.pan.y, g.snap_size)}
+			g.moving_node.pos = Vec2{floor(mpos.x / g.snap_size) * g.snap_size, floor(mpos.y / g.snap_size) * g.snap_size} + off
 		} else {
-			s += "${element}${delimiter}"
+			g.moving_node.pos = mpos // - g.focused_node.title_center()
+		}
+		sapp.set_mouse_cursor(.resize_all)
+	}
+}
+
+
+fn (mut g Graph[T]) ctrl_connections(event &gg.Event) {
+	mpos := Vec2{event.mouse_x, event.mouse_y}
+	
+	g.preview_pin.custom_pos = mpos
+	g.preview_pin.color = Color.hex("#ffffff")
+	
+	// Check for target pins
+	if g.dragging {
+		if g.focused_pin != unsafe { nil } {
+			if g.is_valid_second_pin(g.focused_pin) {
+				// > Set target
+				g.preview_conn.pin_idx_b = g.focused_node.get_pin_idx(g.focused_pin) or { return }
+				g.preview_conn.node_b = g.focused_node
+				
+				// > Snap to target
+				g.preview_pin.custom_pos = g.focused_node.get_pin_pos(g.preview_conn.pin_idx_b)
+				g.preview_pin.color = g.focused_pin.color
+			}
 		}
 	}
-	return s
-}
-
-
-const graph_output_pin = GraphPin{
-	uid:               0
-	idx:               0
-	name:              "output"
-	color:             Color.hex("#000000")
-	typ:               ""
-	is_input:          false
-	type_data:         unsafe { objects.valid_cl_shader_types["Sample"] }
-}
-
-
-pub fn (node_graph Graph) get_cl_source_code() !string {
-	mut lines := []string{}
-	mut visited := []GraphNode{}
-	output_node := *(node_graph.get_output_node() or { return error("Error while starting compilation at output node : ${err}") })
-	mut todo := [output_node]
-	mut depth := 0
-
-	for todo.len > 0 {
-		current_todo := todo.clone()
-		todo.clear()
-		for node in current_todo {
-			if visited.contains(node) { continue }
-			mut variables := []string{}
-			for pin in node.pins_in {
-				if pin.is_connected {
-					variable_name := node_graph.get_variable_from_target_pin(pin) or { continue }
-					left_node := node_graph.get_left_node(pin) or { continue }
-					todo << *left_node
-					variables << variable_name
-				} else {
-					custom_value := pin.custom_value or { 0.0 }
-					variables << "${custom_value}"
-				}
-			}
-			output_pin := node.pins_out[0] or { graph_output_pin }
-			output_var := output_pin.get_variable()
-			str_vars := join_arr(variables, ", ")
+	
+	// Start new preview connection
+	if event.typ == .mouse_down && event.mouse_button == .left && g.focused_pin != unsafe { nil } {
+		if g.get_connections_at_pin(g.focused_pin).len > 0 && g.focused_pin.is_input {
+			mut conn := g.get_connections_at_pin(g.focused_pin)[0]
+			idx := g.connections.index(conn)
+			if idx == -1 { return }
 			
-			line := if node.cl_node.is_custom_var {
-				"\t${node.cl_node.return_type} ${output_var} = ${node.cl_node.fn_name};"
-			} else {
-				"\t${node.cl_node.return_type} ${output_var} = ${node.cl_node.fn_name}(${str_vars});"
-			}
-			if line !in lines {
-				lines << line
-			}
-			visited << node
-		}
-		depth += 1
-		if depth == 500 {
-			return error("Stack Overflow")
+			// > Copy connection
+			g.preview_conn.node_a    = conn.node_a
+			g.preview_conn.pin_idx_a = conn.pin_idx_a
+			g.preview_conn.node_b    = conn.node_b
+			g.preview_conn.pin_idx_b = conn.pin_idx_b
+			
+			// > Remove is_connected state
+			conn.node_a.pins[conn.pin_idx_a].is_connected = false
+			conn.node_b.pins[conn.pin_idx_b].is_connected = false
+			
+			// > Delete connection
+			g.connections.delete(idx)
+			g.dragging = true
+		} else if !g.focused_pin.is_input {
+			pin_idx := g.focused_node.get_pin_idx(g.focused_pin) or { return }
+			
+			g.preview_conn.node_a = g.focused_node
+			g.preview_conn.pin_idx_a = pin_idx
+			g.dragging = true
 		}
 	}
-	return_line := "\treturn " + lines[0].all_after("(").all_before(")") + ";"
-	lines.drop(1)
-	lines.reverse_in_place()
 	
-	lines = sort_source_lines(lines) or { return error("Can't resort source code lines : ${err}") }
-	lines << return_line
-	
-	return join_arr(lines, "\n")
-}
-
-fn sort_source_lines(lines []string) ![]string {
-	// > Collect full line and all immediate dependencies for each avraible by name
-	mut dependencies := map[string][]string{}
-	mut code := map[string]string{}
-	
-	for line in lines {
-		var_name := line.split(" ")[1] or { return error("Tried to parse invalid line : ${line}") }
-		mut deps := []string{}
-		for dep in line.all_after("(").all_before(")").split(", ") {
-			if dep.starts_with("var") {
-				deps << dep
+	// Finish or cancel preview connection
+	if event.typ == .mouse_up && event.mouse_button == .left {
+		g.dragging = false
+		
+		if g.preview_conn.node_b != unsafe { nil } && g.focused_node != unsafe { nil } && g.focused_pin != unsafe { nil } {
+			g.connections << &UIConnection[T]{
+				node_a:    g.preview_conn.node_a
+				pin_idx_a: g.preview_conn.pin_idx_a
+				
+				node_b:    g.preview_conn.node_b
+				pin_idx_b: g.preview_conn.pin_idx_b
 			}
+			
+			g.preview_conn.node_a.pins[g.preview_conn.pin_idx_a].is_connected = true
+			g.preview_conn.node_b.pins[g.preview_conn.pin_idx_b].is_connected = true
+			
+			g.preview_conn.node_b = unsafe { nil }
+			g.preview_conn.pin_idx_b = 0
 		}
 		
-		dependencies[var_name] = deps
-		code[var_name] = line
+		g.preview_conn.node_a = unsafe { nil }
+		g.preview_conn.pin_idx_a = 0
+		g.preview_conn.node_b = unsafe { nil }
+		g.preview_conn.pin_idx_b = 0
 	}
-	
-	mut ordered := []string{}
-	mut visited := []string{}
-	
-	for v, _ in dependencies {
-		dfs(v, mut visited, mut ordered, dependencies)
-	}
-	
-	mut new_lines := []string{}
-	for v in ordered {
-		new_lines << code[v]
-	}
-	return new_lines
 }
 
-fn dfs(var string, mut visited []string, mut ordered []string, deps map[string][]string) {
-	if var in visited {
-		return
+fn (mut g Graph[T]) manage_toasts(mut ctx gg.Context) {
+	// Decrement time
+	delta := g.delta_timer.elapsed().seconds()
+	g.delta_timer.restart()
+	// widnow_size := ctx.window_size()
+	
+	g.toasts.update(delta)
+	
+	g.toasts.sort_by_time()
+	g.toasts.draw(mut ctx, g.pos + g.size - Vec2{20.0, 20.0}, 15.0)
+}
+
+
+// ======== UTIL ========
+
+// Returns true, if the given pin is a suitable pin for the second half of the preview connection
+// TODO : Make function return error to be displayed
+fn (g Graph[T]) is_valid_second_pin(pin &UIPin) bool {
+	// > Don't allow in and out pin to be the same
+	pin_a := g.preview_conn.node_a.pins[g.preview_conn.pin_idx_a] or { return false }
+	if pin_a == pin {
+		return false
 	}
-	for dep in deps[var] {
-		if dep in deps.keys() && dep !in ["p", "time"] {
-			dfs(dep, mut visited, mut ordered, deps)
+	
+	// > Make sure, that one pin is input and one is output
+	if pin_a.is_input == pin.is_input {
+		return false
+	}
+	
+	// > Make sure, the connection doesn't already exist
+	if g.is_connection_existent(pin, pin_a) {
+		return false
+	}
+	
+	// > Allow only one connection for input pins
+	if pin.is_input {
+		for conn in g.connections {
+			if conn.get_pin_a() == pin || conn.get_pin_b() == pin {
+				return false
+			}
 		}
 	}
-	visited << var
-	ordered << var
+	
+	return true
 }
 
 
-
-pub fn (node_graph Graph) get_all_used_functions() string {
-	mut fns := []string{}
-	for node in node_graph.nodes {
-		if node.cl_node.no_compile { continue }
-		if fns.contains(node.cl_node.function) { continue }
-		fns << node.cl_node.function
+// Returns a reference to the closest of all pins to the given position in the node graph 'pin_range'
+// Returns none, if no pins were checked or no pin is in range
+pub fn (g Graph[T]) get_closest_pin(pos Vec2) ?&UIPin {
+	mut closest_pin_node_idx := -1
+	mut closest_pin_idx := -1
+	mut closest_dist := g.pin_range
+	for i, node in g.nodes {
+		for j, _ in node.pins {
+			distance := node.get_pin_pos(j).distance_to(pos)
+			if distance < closest_dist && distance < g.pin_range {
+				closest_dist = distance
+				closest_pin_node_idx = i
+				closest_pin_idx = j
+			}
+		}
 	}
-	return join_arr(fns, "\n\n")
+	if closest_pin_idx == -1 || closest_pin_node_idx == -1 {
+		return none
+	}
+	return g.nodes[closest_pin_node_idx].pins[closest_pin_idx]
 }
+
+// Returns the corresponding node to the given pin
+pub fn (g Graph[T]) get_node_from_pin(pin &UIPin) &UINode[T] {
+	for node in g.nodes {
+		if pin in node.pins {
+			return node
+		}
+	}
+	return unsafe { nil }
+}
+
+pub fn (g Graph[T]) get_connections_at_pin(pin &UIPin) []&UIConnection[T] {
+	mut connections := []&UIConnection[T]{}
+	for conn in g.connections {
+		if conn.get_pin_a() == pin || conn.get_pin_b() == pin {
+			connections << conn
+		}
+	}
+	return connections
+}
+
+pub fn (g Graph[T]) is_connection_existent(pin_a &UIPin, pin_b &UIPin) bool {
+	for connection in g.connections {
+		conn_pin_a := connection.get_pin_a()
+		conn_pin_b := connection.get_pin_b()
+		
+		if (conn_pin_a == pin_a && conn_pin_b == pin_b)  ||  (conn_pin_a == pin_b && conn_pin_b == pin_a) {
+			return true
+		}
+	}
+	return false
+}
+
+
+// Creates a connection between the two given nodes and pins
+pub fn (mut g Graph[T]) connect(mut node_a &UINode[T], pin_idx_a int, mut node_b &UINode[T], pin_idx_b int) ! {
+	if pin_idx_a < 0 || node_a.pins.len < pin_idx_a { return error("Pin idx '${pin_idx_a}' a out of range [0, ${node_a.pins.len})") }
+	if pin_idx_b < 0 || node_b.pins.len < pin_idx_b { return error("Pin idx '${pin_idx_b}' b out of range [0, ${node_b.pins.len})") }
+	
+	node_a.pins[pin_idx_a].is_connected = true
+	node_b.pins[pin_idx_b].is_connected = true
+	
+	connection := &UIConnection[T]{
+		node_a:        node_a
+		pin_idx_a:     pin_idx_a
+		
+		node_b:        node_b
+		pin_idx_b:     pin_idx_b
+	}
+	g.connections << connection
+}
+
+
+// Adds a selected node to the graph
+pub fn (mut g Graph[T]) add_node(node UINode[T], pos Vec2) &UINode[T] {
+	mut pins := []&UIPin{}
+	for pin in node.pins {
+		mut new_pin := &UIPin{
+			...(*pin)
+			uid: rand.u64()
+		}
+		if pin.custom_value != none {
+			new_pin.custom_value = match pin.custom_value {
+				CustomPinDataFloat { CustomPinData(CustomPinDataFloat{}) }
+				CustomPinDataBool { CustomPinData(CustomPinDataBool{}) }
+				else { break }
+			}
+		}
+		pins << new_pin
+	}
+	
+	new_node := &UINode[T]{
+		...node
+		pos: pos
+		pins: pins
+	}
+	
+	g.nodes << new_node
+	return new_node
+}
+
+// Deletes a selected node to the graph
+pub fn (mut g Graph[T]) delete_node(idx int) {
+	// Delete all connections
+	node := g.nodes[idx]
+	for pin in node.pins {
+		for i, conn in g.connections {
+			if conn.get_pin_a() == pin || conn.get_pin_b() == pin {
+				g.connections.delete(i)
+			}
+		}
+	}
+	
+	g.nodes.delete(idx)
+}
+
+
+// Adds a selectable node to the list of possible selectables
+// Note : sub-paths are made with a '/'
+pub fn (mut g Graph[T]) set_node_selection(path string, node UINode[T]) {
+	g.node_selection[path] = node
+	g.menu.options << path
+}
+
+
+// Creates a notice popup
+pub fn (mut g Graph[T]) toast(msg string, state ToastMessageType) {
+	g.toasts.add_toast(msg, state, g.toast_lifetime)
+}
+

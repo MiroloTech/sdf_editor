@@ -77,3 +77,16 @@ pub fn Vec2.angle_between(a Vec2, b Vec2) f64 {
 pub fn Vec2.rad2dir(r f64) Vec2 {
 	return Vec2{ math.cos(r), math.sin(r) }
 }
+
+pub fn Vec2.zero() Vec2 {
+	return Vec2{0.0, 0.0}
+}
+
+pub fn Vec2.v(v f64) Vec2 {
+	return Vec2{v, v}
+}
+
+pub fn Vec2.lerp(a Vec2, b Vec2, t f64) Vec2 {
+	return a + (b - a) * Vec2{t, t}
+}
+

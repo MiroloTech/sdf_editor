@@ -319,11 +319,11 @@ pub fn (mut nodes []Node) add_from_json(path string) ! {
 	}
 }
 
-pub fn (node Node) get_ctx_path() string {
+pub fn (node Node) get_ctx_path(delimiter string) string {
 	return if node.sub_category == "" {
-		node.category.str() + "." + node.name
+		node.category.str() + delimiter + node.name
 	} else {
-		node.category.str() + "." + node.sub_category + "." + node.name
+		node.category.str() + delimiter + node.sub_category.replace(".", delimiter) + delimiter + node.name
 	}
 }
 

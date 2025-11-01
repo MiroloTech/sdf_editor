@@ -295,6 +295,10 @@ pub fn (c Color) value() f64 {
 	return (c.r + c.g + c.b) / 3.0
 }
 
+pub fn (c Color) alpha(a f64) Color {
+	return Color{c.r, c.g, c.b, a}
+}
+
 // get_rgb8 returns the 8-bit variant of the r, g, b components
 pub fn (c Color) get_rgb8() (u8, u8, u8) {
 	return u8(c.r * 255.0), u8(c.g * 255.0), u8(c.b * 255.0)
@@ -331,6 +335,16 @@ pub fn (c Color) pretty_str() string {
 }
 
 // >> Utillity
+
+// Interpolates between two colors
+pub fn Color.lerp(a Color, b Color, t f64) Color {
+	return Color{
+		a.r + (b.r - a.r) * t,
+		a.g + (b.g - a.g) * t,
+		a.b + (b.b - a.b) * t,
+		a.a + (b.a - a.a) * t,
+	}
+}
 
 // darken returns a darkened ( and clamped ) copy of the orignal color, based on the given darking value
 // This function excludes darkening of the alpha channel

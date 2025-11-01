@@ -1,9 +1,19 @@
 module std
 
 import gg
+import math { clamp, min }
+
+import std.geom2 { Vec2 }
 
 type StringColChar = Color | string
 type StringCol = []StringColChar
+
+const rad0   := 0.0
+const rad90  := 1.57079632679
+const rad180 := 3.14159265359
+const rad270 := 4.71238898038
+const rad360 := 6.28318530718
+
 
 pub fn draw_image(mut ctx gg.Context, img Image, x int, y int, width int, height int, img_cfg ImageDrawCfg) {
 	// TODO : Optimize Image drawing function
@@ -61,6 +71,210 @@ pub fn draw_text_fancy(mut ctx gg.Context, text StringCol, x int, y int, cfg Tex
 			currx += ctx.text_width(token)
 		}
 	}
+}
+
+pub fn draw_thick_line(mut ctx gg.Context, ax f32, ay f32, bx f32, by f32, width f32, color gg.Color) {
+	mut tangent := Vec2{ax, ay}.direction_to(Vec2{bx, by})
+	tangent = Vec2{tangent.y, -tangent.x} * Vec2{width * 0.5, width * 0.5}
+	ctx.draw_line_with_config(
+		ax + f32(tangent.x), ay + f32(tangent.y),
+		bx + f32(tangent.x), by + f32(tangent.y),
+		color: color
+		thickness: width
+	)
+}
+
+
+pub fn draw_special_rounded_rect_filled(mut ctx gg.Context, x f32, y f32, w f32, h f32, c gg.Color, rounding RectRounding) {
+	// Corners
+	segments := rounding.segments
+	
+	r1 := f32(clamp(rounding.r1 or { rounding.radius }, 0.0, min(f64(w), f64(h)) / 2.0))
+	r2 := f32(clamp(rounding.r2 or { rounding.radius }, 0.0, min(f64(w), f64(h)) / 2.0))
+	r3 := f32(clamp(rounding.r3 or { rounding.radius }, 0.0, min(f64(w), f64(h)) / 2.0))
+	r4 := f32(clamp(rounding.r4 or { rounding.radius }, 0.0, min(f64(w), f64(h)) / 2.0))
+	
+	// > Top Left
+	ctx.draw_slice_filled(
+		x + r1, y + r1,
+		r1,
+		f32(rad180), f32(rad270),
+		segments, c
+	)
+	
+	// > Top Right
+	ctx.draw_slice_filled(
+		x + w - r2, y + r2,
+		r2,
+		f32(rad90), f32(rad180),
+		segments, c
+	)
+	
+	// > Bottom Right
+	ctx.draw_slice_filled(
+		x + w - r4, y + h - r4,
+		r4,
+		f32(rad0), f32(rad90),
+		segments, c
+	)
+	
+	// > Bottom Left
+	ctx.draw_slice_filled(
+		x + r3, y + h - r3,
+		r3,
+		f32(rad270), f32(rad360),
+		segments, c
+	)
+	
+	// > Center Polygon
+	mut pts := [][]f32{}
+	
+	pts << [ // Top Left
+		[x, y + r1],
+		[x + r1, y + r1],
+		[x + r1, y],
+	]
+	
+	pts << [ // Top Right
+		[x + w - r2, y],
+		[x + w - r2, y + r2],
+		[x + w, y + r2],
+	]
+	
+	pts << [ // Bottom Right
+		[x + w, y + h - r3],
+		[x + w - r3, y + h - r3],
+		[x + w - r3, y + h],
+	]
+	
+	pts << [ // Bottom Left
+		[x + r4, y + h],
+		[x + r4, y + h - r4],
+		[x, y + h - r4],
+	]
+	
+	ctx.draw_triangle_filled(
+		pts[1][0], pts[1][1],
+		pts[2][0], pts[2][1],
+		pts[3][0], pts[3][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[3][0], pts[3][1],
+		pts[4][0], pts[4][1],
+		pts[1][0], pts[1][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[4][0], pts[4][1],
+		pts[5][0], pts[5][1],
+		pts[6][0], pts[6][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[6][0], pts[6][1],
+		pts[7][0], pts[7][1],
+		pts[4][0], pts[4][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[7][0], pts[7][1],
+		pts[8][0], pts[8][1],
+		pts[9][0], pts[9][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[9][0], pts[9][1],
+		pts[10][0], pts[10][1],
+		pts[7][0], pts[7][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[10][0], pts[10][1],
+		pts[11][0], pts[11][1],
+		pts[0][0], pts[0][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[0][0], pts[0][1],
+		pts[1][0], pts[1][1],
+		pts[10][0], pts[10][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[1][0], pts[1][1],
+		pts[4][0], pts[4][1],
+		pts[7][0], pts[7][1],
+		c
+	)
+	ctx.draw_triangle_filled(
+		pts[7][0], pts[7][1],
+		pts[10][0], pts[10][1],
+		pts[1][0], pts[1][1],
+		c
+	)
+}
+
+pub fn draw_thick_bezier(mut ctx gg.Context, ax f64, ay f64, bx f64, by f64, cx f64, cy f64, dx f64, dy f64, witdh f64, cola Color, colb Color, segments int) {
+	a := Vec2{ax, ay}
+	b := Vec2{bx, by}
+	c := Vec2{cx, cy}
+	d := Vec2{dx, dy}
+	
+	mut last_point := a
+	mut last_tangent := Vec2{0.0, -1.0}
+	
+	for seg in 0..segments {
+		t := f64(seg + 1) / f64(segments)
+		
+		// > Lerp bezier Curve
+		e := Vec2.lerp(a, b, t)
+		f := Vec2.lerp(b, c, t)
+		g := Vec2.lerp(c, d, t)
+		
+		h := Vec2.lerp(e, f, t)
+		i := Vec2.lerp(f, g, t)
+		j := Vec2.lerp(h, i, t)
+		
+		mut tangent := last_point.direction_to(j)
+		tangent = Vec2{tangent.y, -tangent.x}
+		
+		// > Draw segment
+		color := Color.lerp(cola, colb, t).get_gx()
+		
+		tria := last_point    - last_tangent * Vec2.v(witdh * 0.5)
+		trib := j             - tangent      * Vec2.v(witdh * 0.5)
+		tric := j             + tangent      * Vec2.v(witdh * 0.5)
+		trid := last_point    + last_tangent * Vec2.v(witdh * 0.5)
+		
+		ctx.draw_triangle_filled(
+			f32(tria.x), f32(tria.y),
+			f32(trib.x), f32(trib.y),
+			f32(tric.x), f32(tric.y),
+			color
+		)
+		ctx.draw_triangle_filled(
+			f32(tric.x), f32(tric.y),
+			f32(trid.x), f32(trid.y),
+			f32(tria.x), f32(tria.y),
+			color
+		)
+		
+		last_point = j
+		last_tangent = tangent
+	}
+}
+
+
+@[params]
+pub struct RectRounding {
+	pub:
+	r1         ?f32             // Top Left
+	r2         ?f32             // Top Right
+	r3         ?f32             // Bottom Left
+	r4         ?f32             // Bottom Right
+	radius     f32              // Base rounding
+	segments   int       = 32   // Rounding steps
 }
 
 @[params]

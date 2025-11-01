@@ -96,14 +96,14 @@ pub fn (v Vec3) to_grid(gridx f64, gridy f64, gridz f64) Vec3 {
 }
 
 pub fn (v Vec3) rotated(axis Vec3, angle f64) Vec3 {
-	return Vec3.lerp( Vec3.new( Vec3.dot(axis, v) ) * axis, v, math.cos(angle) ) + Vec3.cross(axis, v) * Vec3.new( math.sin(angle) )
+	return Vec3.lerp( Vec3.v( Vec3.dot(axis, v) ) * axis, v, math.cos(angle) ) + Vec3.cross(axis, v) * Vec3.v( math.sin(angle) )
 }
 
 pub fn (v Vec3) reflect(n Vec3) Vec3 {
 	nn := n.normalized()
 	d := Vec3.dot(v, nn)
 	
-	b := Vec3.new(2.0 * d) * nn
+	b := Vec3.v(2.0 * d) * nn
 	return v - b
 }
 
@@ -185,7 +185,7 @@ pub fn (v Vec3) up() Vec3 {
 
 
 // --- STATIC ---
-pub fn Vec3.new(s f64) Vec3 {
+pub fn Vec3.v(s f64) Vec3 {
 	return Vec3{s, s, s}
 }
 
